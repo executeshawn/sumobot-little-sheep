@@ -64,3 +64,24 @@ constexpr uint16_t TOF_CONT_SIDE_MS  = 70;
 
 // Search behaviour: deterministic alternating sweep.
 constexpr uint32_t SWEEP_SEGMENT_MS = 600;
+
+// ---------------------------------------------------------------------------
+//  Movement calibration (open-loop, no sensor feedback).
+//
+//  Why open-loop only: this build has no encoders, no IMU, and the VL53L0X
+//  side sensors look outward at the opponent / open arena (not at walls or
+//  ground), so there is no reference surface to close a loop against.
+//
+//  TRIM: per-channel PWM scaler applied in Movement:: above Motors::. 1.00 =
+//  no change. Lower the *faster* side to straighten a forward drift. Range
+//  clamped to [0.50, 1.00] in code so trim only ever *slows* a motor (never
+//  asks for more PWM than the caller requested).
+//
+//  MS_PER_DEG: empirical bench constant for pivot-by-angle helpers. Measure
+//  by commanding a 360-deg pivot at SPEED_TURN and timing it; divide by 360.
+//  Defaults are placeholders until measured.
+// ---------------------------------------------------------------------------
+constexpr float MOVE_TRIM_LEFT     = 1.00f;
+constexpr float MOVE_TRIM_RIGHT    = 1.00f;
+constexpr float MOVE_MS_PER_DEG_LEFT  = 6.0f;  // placeholder until bench-measured
+constexpr float MOVE_MS_PER_DEG_RIGHT = 6.0f;  // placeholder until bench-measured
