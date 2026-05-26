@@ -50,8 +50,7 @@ void pollSide();
 TofReadings readAllSensors();
 
 // Reduces a reading set to a single opponent bearing using config thresholds.
-// `aggressive` shortens every threshold (commit only to close targets).
-OpponentDir detectOpponent(const TofReadings &r, bool aggressive);
+OpponentDir detectOpponent(const TofReadings &r);
 
 // Human-readable label for logging.
 const char *dirName(OpponentDir d);

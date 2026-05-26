@@ -22,7 +22,13 @@ void drive(int leftSpeed, int rightSpeed);
 void stop();   // coast: PWM 0, then STBY LOW (low-power, no holding torque)
 void brake();  // active short brake on both motors (STBY stays HIGH)
 
-// Sets an upper bound applied to every speed magnitude (torque mode = lower).
+// "Soft" upper bound applied to every speed magnitude. Re-set every FSM tick
+// by Strategy from the torque-mode DIP switch.
 void setSpeedCap(int cap);
+
+// "Hard" upper bound — set once (typically by a test or safety wrapper) and
+// applied as an additional ceiling on top of the soft cap. The effective
+// clamp is min(softCap, hardCap). Default = 255 (no extra limit).
+void setHardCap(int cap);
 
 } // namespace Motors

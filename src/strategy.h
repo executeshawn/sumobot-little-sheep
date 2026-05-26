@@ -14,14 +14,6 @@ enum class State : uint8_t {
     STOP
 };
 
-// Decoded DIP switch behaviour flags (true = switch ON = pin LOW).
-// Reduced to 3 switches in the current hardware revision.
-struct DipSettings {
-    bool aggressive;  // SW1: higher attack speed, shorter detection range
-    bool spinSearch;  // SW2: spin-in-place search instead of sweep
-    bool torqueMode;  // SW3: cap PWM for holding force
-};
-
 namespace Strategy {
 
 void begin();

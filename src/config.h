@@ -16,10 +16,6 @@ constexpr uint16_t TOF_THRESH_LEFT         = 300;
 constexpr uint16_t TOF_THRESH_RIGHT        = 300;
 constexpr uint16_t TOF_THRESH_REAR         = 250;
 
-// Aggressive mode (SW1 ON) shortens detection range so the bot only commits
-// to very close targets but does so at higher speed.
-constexpr uint16_t TOF_THRESH_AGGRESSIVE_DELTA = 150; // subtracted from above
-
 constexpr uint16_t TOF_OUT_OF_RANGE = 9999; // sentinel for invalid/timeout
 
 // ---------------------------------------------------------------------------
@@ -38,16 +34,12 @@ constexpr uint8_t  MOTOR_CH_LEFT  = 0;    // LEDC channel for left motor
 constexpr uint8_t  MOTOR_CH_RIGHT = 1;    // LEDC channel for right motor
 
 // ---------------------------------------------------------------------------
-//  Speed profiles (0..255). "torque" mode (SW3 ON) caps top speed.
+//  Speed profiles (0..255). Deterministic - no DIP-switch overrides.
 // ---------------------------------------------------------------------------
 constexpr int SPEED_FULL   = 255; // max
 constexpr int SPEED_ATTACK = 230; // attack drive
 constexpr int SPEED_SEARCH = 140; // search rotation/sweep
 constexpr int SPEED_TURN   = 180; // evade/turn pivots
-constexpr int SPEED_TORQUE_CAP = 160; // SW3 ON: clamp all speeds to this
-
-// Aggressive mode (SW1 ON) attack speed override
-constexpr int SPEED_ATTACK_AGGRESSIVE = 255;
 
 // ---------------------------------------------------------------------------
 //  Timing
@@ -60,28 +52,15 @@ constexpr uint32_t XSHUT_BOOT_DELAY_MS = 10;   // settle after raising XSHUT
 
 // ---------------------------------------------------------------------------
 //  Multi-rate sensing (edge has top priority -> shortest period)
-//  Edge detection must win the race against driving off the ring, so it is
-//  polled fastest and checked first in the FSM. The front ToF group runs at a
-//  medium rate (engagement-critical); the side/rear group runs slow (only used
-//  to break ties / detect flanking).
 // ---------------------------------------------------------------------------
 constexpr uint32_t FSM_UPDATE_MS     = 5;   // FSM tick (consumes cached data)
 constexpr uint32_t EDGE_POLL_MS      = 8;   // FAST   : QTR edge read + cache
 constexpr uint32_t TOF_FRONT_POLL_MS = 30;  // MEDIUM : harvest front 3 ToF
 constexpr uint32_t TOF_SIDE_POLL_MS  = 90;  // SLOW   : harvest side/rear 3 ToF
 
-// VL53L0X continuous-ranging inter-measurement periods (ms). The chip ranges
-// on its own; harvesting above just reads the latest completed result without
-// blocking. Front ranges faster than side/rear.
+// VL53L0X continuous-ranging inter-measurement periods (ms).
 constexpr uint16_t TOF_CONT_FRONT_MS = 25;
 constexpr uint16_t TOF_CONT_SIDE_MS  = 70;
 
-// Search behavior
-constexpr uint32_t SWEEP_SEGMENT_MS = 600;  // time per sweep direction (SW2 OFF)
-
-// ---------------------------------------------------------------------------
-//  LED blink periods (ms half-period)
-// ---------------------------------------------------------------------------
-constexpr uint32_t LED_BLINK_SLOW = 500; // IDLE
-constexpr uint32_t LED_BLINK_FAST = 100; // CALIBRATE
-constexpr uint32_t LED_BLINK_RAPID = 60; // ATTACK
+// Search behaviour: deterministic alternating sweep.
+constexpr uint32_t SWEEP_SEGMENT_MS = 600;

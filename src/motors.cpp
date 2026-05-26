@@ -8,15 +8,19 @@
 //  Arduino-ESP32 core 2.x vs 3.x LEDC API churn that breaks most SparkFun-
 //  derived TB6612 libraries.
 //
-//  TB6612FNG truth table (per channel):
+//  TB6612FNG truth table (per channel, abstract):
 //      IN1   IN2   PWM     mode
 //      L     L     X       short brake (both outputs LOW)
-//      L     H     PWM     CCW (reverse), modulated
-//      H     L     PWM     CW  (forward), modulated
+//      L     H     PWM     one rotation direction, modulated
+//      H     L     PWM     opposite rotation direction, modulated
 //      H     H     X       short brake
 //      STBY=L: high-Z (coast)
 //
-//  Sign convention here: positive speed = forward (IN1=HIGH, IN2=LOW).
+//  Project polarity (verified at the bench on the assembled chassis -
+//  motor wiring runs INVERTED vs. the SparkFun reference):
+//      forward (positive speed) = IN1 LOW,  IN2 HIGH
+//      reverse (negative speed) = IN1 HIGH, IN2 LOW
+//  Applies to BOTH the A (left) and B (right) channels.
 //
 //  Requires Arduino-ESP32 core 2.x (uses ledcSetup / ledcAttachPin /
 //  ledcWrite). platformio.ini pins espressif32@^6.x for that reason.
@@ -28,22 +32,25 @@
 
 namespace {
 
-int g_speedCap = SPEED_FULL;
+int g_speedCap = SPEED_FULL; // soft cap, updated each FSM tick
+int g_hardCap  = 255;        // hard cap, set once (e.g. by a test wrapper)
 
 inline int clampSpeed(int v) {
-    if (v >  g_speedCap) v =  g_speedCap;
-    if (v < -g_speedCap) v = -g_speedCap;
+    const int cap = (g_speedCap < g_hardCap) ? g_speedCap : g_hardCap;
+    if (v >  cap) v =  cap;
+    if (v < -cap) v = -cap;
     return v;
 }
 
 // Drive one motor channel with a signed speed in -255..255.
 // Sign sets direction via the IN1/IN2 pins; magnitude becomes PWM duty.
+// Forward = IN1 LOW, IN2 HIGH (verified polarity for this build).
 void applyMotor(uint8_t ledcCh, int in1Pin, int in2Pin, int spd) {
     const bool fwd  = (spd >= 0);
     int duty = spd >= 0 ? spd : -spd;
     if (duty > 255) duty = 255;
-    digitalWrite(in1Pin, fwd ? HIGH : LOW);
-    digitalWrite(in2Pin, fwd ? LOW  : HIGH);
+    digitalWrite(in1Pin, fwd ? LOW  : HIGH);
+    digitalWrite(in2Pin, fwd ? HIGH : LOW);
     ledcWrite(ledcCh, (uint32_t)duty);
 }
 
@@ -60,7 +67,17 @@ void brakeMotor(uint8_t ledcCh, int in1Pin, int in2Pin) {
 namespace Motors {
 
 void begin() {
-    // Direction pins.
+    // Order matters for clean power-on behaviour:
+    //   1) Force STBY LOW first  (driver in high-Z, motors free-wheel).
+    //   2) Define direction pins LOW (short-brake state once STBY rises).
+    //   3) Configure + attach PWM channels with duty 0.
+    //   4) Only then bring STBY HIGH to enable the bridge.
+    // The 10k pulldown on STBY keeps the driver disabled during the brief
+    // window between reset and step 1.
+
+    pinMode(PIN_STBY, OUTPUT);
+    digitalWrite(PIN_STBY, LOW);
+
     pinMode(PIN_AIN1, OUTPUT);
     pinMode(PIN_AIN2, OUTPUT);
     pinMode(PIN_BIN1, OUTPUT);
@@ -70,25 +87,32 @@ void begin() {
     digitalWrite(PIN_BIN1, LOW);
     digitalWrite(PIN_BIN2, LOW);
 
-    // STBY: pull HIGH to bring the driver out of standby.
-    pinMode(PIN_STBY, OUTPUT);
-    digitalWrite(PIN_STBY, HIGH);
-
-    // LEDC channels for the two PWM lines, sharing freq/resolution so they
-    // can share one LEDC timer with no conflict.
+    // LEDC: classic Arduino-ESP32 2.x API. Both channels share frequency &
+    // resolution so they can share one LEDC timer.
     ledcSetup(MOTOR_CH_LEFT,  MOTOR_PWM_FREQ, MOTOR_PWM_RES);
     ledcAttachPin(PIN_PWMA,   MOTOR_CH_LEFT);
+    ledcWrite(MOTOR_CH_LEFT,  0);
     ledcSetup(MOTOR_CH_RIGHT, MOTOR_PWM_FREQ, MOTOR_PWM_RES);
     ledcAttachPin(PIN_PWMB,   MOTOR_CH_RIGHT);
+    ledcWrite(MOTOR_CH_RIGHT, 0);
 
     g_speedCap = SPEED_FULL;
-    drive(0, 0);
+
+    // Bridge enable. Direction pins are both LOW => short brake @ duty 0
+    // => no rotation, no inrush. Caller can subsequently call drive().
+    digitalWrite(PIN_STBY, HIGH);
 }
 
 void setSpeedCap(int cap) {
     if (cap < 0)   cap = 0;
     if (cap > 255) cap = 255;
     g_speedCap = cap;
+}
+
+void setHardCap(int cap) {
+    if (cap < 0)   cap = 0;
+    if (cap > 255) cap = 255;
+    g_hardCap = cap;
 }
 
 void drive(int leftSpeed, int rightSpeed) {

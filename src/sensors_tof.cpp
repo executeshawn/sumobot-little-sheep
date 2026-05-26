@@ -1,12 +1,13 @@
 // ============================================================================
 //  sensors_tof.cpp - 6x VL53L0X bring-up and opponent bearing
+//                    Pololu VL53L0X library (pololu/VL53L0X@^1.3.1)
 // ============================================================================
 #include "sensors_tof.h"
 #include "pins.h"
 #include "config.h"
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_VL53L0X.h>
+#include <VL53L0X.h>
 
 namespace {
 
@@ -27,19 +28,29 @@ const uint16_t THRESH[TOF_N] = {
 constexpr int FRONT_BEGIN = TOF_FL, FRONT_END = TOF_L;   // [0,3)
 constexpr int SIDE_BEGIN  = TOF_L,  SIDE_END  = TOF_N;    // [3,6)
 
-Adafruit_VL53L0X g_lox[TOF_N];
-bool             g_online[TOF_N] = { false, false, false, false, false, false };
-uint16_t         g_cache[TOF_N]  = {
+// Per-sensor read timeout (ms). Caps how long a single readRangeContinuous
+// call can stall the poll if the sensor stops responding.
+constexpr uint16_t TOF_READ_TIMEOUT_MS = 50;
+
+// Measurement timing budget (microseconds). 20 ms approximates the
+// "high speed" preset that the previous library exposed.
+constexpr uint32_t TOF_TIMING_BUDGET_US = 20000;
+
+VL53L0X  g_lox[TOF_N];
+bool     g_online[TOF_N] = { false, false, false, false, false, false };
+uint16_t g_cache[TOF_N]  = {
     TOF_OUT_OF_RANGE, TOF_OUT_OF_RANGE, TOF_OUT_OF_RANGE,
     TOF_OUT_OF_RANGE, TOF_OUT_OF_RANGE, TOF_OUT_OF_RANGE
 };
 
-// Non-blocking harvest of one sensor's continuous result into g_cache.
+// Read one sensor and update its cache slot. The Pololu driver does not
+// expose a non-blocking "is result ready" hook for continuous mode, so this
+// call may briefly block up to TOF_READ_TIMEOUT_MS while waiting for the
+// next measurement; on timeout the slot is marked TOF_OUT_OF_RANGE.
 void harvest(int i) {
     if (!g_online[i]) return;
-    if (!g_lox[i].isRangeComplete()) return; // nothing new yet -> keep cache
-    uint16_t mm = g_lox[i].readRange();      // result ready: read it
-    if (g_lox[i].readRangeStatus() == 4 /*out of range*/) {
+    uint16_t mm = g_lox[i].readRangeContinuousMillimeters();
+    if (g_lox[i].timeoutOccurred()) {
         g_cache[i] = TOF_OUT_OF_RANGE;
     } else {
         g_cache[i] = mm;
@@ -61,21 +72,29 @@ int begin() {
 
     int count = 0;
     // 2) Wake exactly one sensor at a time, then move it off 0x29 so the next
-    //    one (which also wakes at 0x29) does not collide. HIGH_SPEED preset
-    //    trims the timing budget for lower-latency ranging.
+    //    one (which also wakes at 0x29) does not collide.
     for (int i = 0; i < TOF_N; ++i) {
         digitalWrite(XSHUT_PIN[i], HIGH);   // wake sensor i (boots at 0x29)
         delay(XSHUT_BOOT_DELAY_MS);          // let the chip boot
 
-        if (g_lox[i].begin(I2C_ADDR[i], false, &Wire,
-                           Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_SPEED)) {
+        g_lox[i].setBus(&Wire);
+        g_lox[i].setTimeout(TOF_READ_TIMEOUT_MS);
+
+        // init() talks to the chip at the current address (0x29 right now).
+        if (g_lox[i].init()) {
+            // 3) Move this sensor off the default address before waking the
+            //    next one. Subsequent calls use I2C_ADDR[i].
+            g_lox[i].setAddress(I2C_ADDR[i]);
+            g_lox[i].setMeasurementTimingBudget(TOF_TIMING_BUDGET_US);
+
+            // 4) Start free-running continuous ranging. Front group runs at
+            //    a shorter inter-measurement period than the side/rear group.
+            const uint32_t period = (i < FRONT_END) ? TOF_CONT_FRONT_MS
+                                                    : TOF_CONT_SIDE_MS;
+            g_lox[i].startContinuous(period);
+
             g_online[i] = true;
             ++count;
-            // 3) Start free-running continuous ranging. Front group ranges
-            //    faster than the side/rear group.
-            uint16_t period = (i < FRONT_END) ? TOF_CONT_FRONT_MS
-                                              : TOF_CONT_SIDE_MS;
-            g_lox[i].startRangeContinuous(period);
         } else {
             g_online[i] = false;
             Serial.printf("[ToF] sensor %d FAILED to init (would be 0x%02X)\n",
@@ -103,19 +122,13 @@ TofReadings readAllSensors() {
     return r;
 }
 
-OpponentDir detectOpponent(const TofReadings &r, bool aggressive) {
-    // Apply thresholds; aggressive mode shortens every range.
+OpponentDir detectOpponent(const TofReadings &r) {
     uint16_t best = TOF_OUT_OF_RANGE;
     int      bestIdx = -1;
 
     for (int i = 0; i < TOF_N; ++i) {
         if (!r.online[i]) continue;
-        uint16_t th = THRESH[i];
-        if (aggressive) {
-            th = (th > TOF_THRESH_AGGRESSIVE_DELTA)
-                     ? th - TOF_THRESH_AGGRESSIVE_DELTA : 0;
-        }
-        if (r.mm[i] <= th && r.mm[i] < best) {
+        if (r.mm[i] <= THRESH[i] && r.mm[i] < best) {
             best = r.mm[i];
             bestIdx = i;
         }
