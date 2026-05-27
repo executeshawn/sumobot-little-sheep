@@ -11,7 +11,7 @@
 //      * full-stop coasts cleanly (no creep)
 //      * straight-line drift between the two motors
 //
-//    Pin map comes from src/pins.h (FINAL VERIFIED):
+//    Pin map comes from lib/Sumobot/pins.h (FINAL VERIFIED):
 //      Left  channel: PWMA=4, AIN1=5,  AIN2=6
 //      Right channel: PWMB=7, BIN1=47, BIN2=21
 //      STBY = 18

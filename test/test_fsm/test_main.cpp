@@ -52,7 +52,7 @@ static const char *tsName(TS s) {
     return "?";
 }
 
-// Match the durations from src/config.h / src/strategy.cpp.
+// Match the durations from lib/Sumobot/config.h / lib/Sumobot/strategy.cpp.
 constexpr uint32_t CAL_MS    = 4000;
 constexpr uint32_t COUNT_MS  = 5000;
 constexpr uint32_t ATK_WD_MS = 10000;
