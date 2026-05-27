@@ -1,63 +1,68 @@
-# Hardware Bring-Up Tests
+# Hardware Bring-Up Firmwares
 
-This directory contains the PlatformIO test framework for the Heatseeker
-sumobot. Each sub-directory is an **independent firmware image** that
-initialises only the subsystem under test, prints detailed Serial
-diagnostics at **115200 baud**, and is safe to flash and run at the
-bench.
+This directory contains the **bring-up firmware images** for the
+Heatseeker sumobot. Each sub-directory is an independent Arduino sketch
+(`setup()` / `loop()`) that initialises only the subsystem under test,
+prints detailed Serial diagnostics at **115200 baud**, and is safe to
+flash and run at the bench.
 
-These are plain Arduino sketches — `setup()` / `loop()` with serial
-diagnostics, nothing else. No test framework, no Unity assertions, no
-custom runner, no Python scripts. `pio test -f test_xxx` is used purely
-as a build-and-upload selector. PlatformIO automatically excludes
-`src/main.cpp` from each test build so the test's own `setup()` /
-`loop()` becomes the entry point, while every other module under
-`src/` is linked in so each test exercises the real production code.
+These are **not** Unity unit tests and the project does not use
+`pio test`. Each sketch is a real PlatformIO env declared in
+[`../platformio.ini`](../platformio.ini) and is built/flashed with
+`pio run -e <env> -t upload`. The shared production modules
+(`motors`, `movement`, `sensors_*`, `strategy`, `pins`, `config`) live
+in [`../lib/Sumobot/`](../lib/Sumobot/) and are auto-discovered by the
+LDF, so each bring-up firmware exercises the real production code —
+there is no parallel test-only copy.
 
 ---
 
-## Tests in this directory
+## Firmwares in this directory
 
-| Test dir | Subsystem | Motors enabled? | Operator action required |
+| Env | Subsystem | Motors? | Operator action |
 |---|---|---|---|
 | [`test_vl53`](test_vl53/test_main.cpp) | 6 × VL53L0X ring | No | Wave a hand / target in front of each sensor |
+| [`test_vl53_bringup`](test_vl53_bringup/test_main.cpp) | VL53L0X XSHUT address re-assignment | No | Watch Serial for the bring-up sequence |
+| [`test_vl53_verify`](test_vl53_verify/test_main.cpp) | VL53L0X post-bring-up verification | No | Confirm all 6 sensors stream at their final addresses |
 | [`test_qtr`](test_qtr/test_main.cpp) | QTR-MD-03RC edge array | No | Slide array over black mat and white border; send any key to advance phases |
-| [`test_motor_diag`](test_motor_diag/test_main.cpp) | TB6612FNG single-channel diagnostic (one motor at a time) | **Yes (one motor active, low PWM)** | **Lift wheels off the ground / block them** |
+| [`test_motor_diag`](test_motor_diag/test_main.cpp) | TB6612FNG single-channel diagnostic | **Yes (one motor, low PWM)** | **Lift wheels off the ground / block them** |
 | [`test_motor`](test_motor/test_main.cpp) | TB6612FNG combined motion (both channels, drift check) | **Yes (low PWM)** | **Lift wheels off the ground / block them** |
-| [`test_button`](test_button/test_main.cpp) | Start button (only remaining UI input) | No | Press button |
+| [`test_button`](test_button/test_main.cpp) | Start button | No | Press button |
 | [`test_fsm`](test_fsm/test_main.cpp) | FSM transition simulator | No (no hardware needed at all) | Send single-char commands via Serial monitor |
 | [`test_full_system`](test_full_system/test_main.cpp) | Everything integrated | **Yes (hard-capped + 60 s safety timeout)** | Place bot on dohyo with clear space, press start |
+| [`test_calibration_protocol`](test_calibration_protocol/test_main.cpp) | Movement calibration (drift trim + pivot ms/deg) | **Yes (hard-capped at PWM 90)** | Mandatory sanity check, then mark a straight reference; type observations into Serial; copy the printed config block into `lib/Sumobot/config.h` |
 
 ---
 
-## Running a test
+## Building and flashing
+
+Each entry above is a PlatformIO env. Build, upload, and watch with:
 
 ```bash
-pio test -e esp32s3 -f test_vl53
-pio test -e esp32s3 -f test_qtr
-pio test -e esp32s3 -f test_motor_diag
-pio test -e esp32s3 -f test_motor
-pio test -e esp32s3 -f test_button
-pio test -e esp32s3 -f test_fsm
-pio test -e esp32s3 -f test_full_system
-```
+pio run -e test_vl53                  -t upload
+pio run -e test_vl53_bringup          -t upload
+pio run -e test_vl53_verify           -t upload
+pio run -e test_qtr                   -t upload
+pio run -e test_motor_diag            -t upload
+pio run -e test_motor                 -t upload
+pio run -e test_button                -t upload
+pio run -e test_fsm                   -t upload
+pio run -e test_full_system           -t upload
+pio run -e test_calibration_protocol  -t upload
 
-PlatformIO will compile, upload, and open a serial monitor at 115200
-baud. Because these sketches never emit Unity `PASS`/`FAIL` markers,
-the test runner will eventually report a timeout — that result is
-**harmless and expected**; the diagnostic Serial output streamed during
-the run is the deliverable. To keep watching after the runner exits,
-open a second monitor in any terminal:
-
-```bash
-pio device monitor -b 115200
+pio device monitor -e <env-name>      # serial @ 115200 (inherited from [env])
 ```
 
 To return to the production firmware afterwards:
 
 ```bash
-pio run -e esp32s3 --target upload
+pio run -e esp32s3 -t upload
 ```
+
+No `pio test` is used. No Unity framework is involved. Each env has its
+own `build_src_filter` in `platformio.ini` that excludes
+`src/main.cpp` and pulls in exactly one `test/<env>/test_main.cpp`, so
+there is never more than one `setup()`/`loop()` in the link.
 
 ---
 
