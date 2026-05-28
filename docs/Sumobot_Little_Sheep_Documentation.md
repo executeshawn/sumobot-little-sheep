@@ -74,80 +74,133 @@ The robot can be drawn as a simple signal flow graph showing how
 information moves from sensors to motors and back.
 
 ```
-   R(s) ──► (Σ) ──► Controller ──► Motor Driver ──► Motors ──► Y(s)
-              ▲                                                  │
-              └────────────── Feedback ──────────────────────────┘
+   R(s) ──►(Σ)── E(s) ──► Gc(s) ──► Gm(s) ──► C(s)
+            ▲                                   │
+            │                                   │
+            └─────────── H(s) ◄─────────────────┘
 ```
+
+### Variables used
+
+| Symbol  | Meaning                                                  |
+|---------|----------------------------------------------------------|
+| `R(s)`  | Reference / target direction (where the robot should face) |
+| `E(s)`  | Error signal (difference between target and actual) |
+| `Gc(s)` | Controller gain — the ESP32 decision logic |
+| `Gm(s)` | Motor gain — TB6612FNG driver + TT motor response |
+| `H(s)`  | Feedback path — sensor reading that goes back to the controller |
+| `C(s)`  | Output — actual robot movement / heading |
 
 ### Reading the graph
 
 The sensors give the robot a “target direction”. The controller
-compares this with what the robot is doing now, then sends a
-command to the motors. The motors move the robot, and the sensors
-read again. This loop keeps repeating.
+compares this with what the robot is currently doing (`H(s)`), gets
+an error `E(s)`, then sends a command through `Gc(s)` and `Gm(s)`
+to produce movement `C(s)`. The sensors read again, and the loop
+keeps repeating.
 
-**a) Input node (R)**
-The desired direction the robot should face. It comes from the
-VL53 sensors finding the opponent.
+**a) Input node**
+`R(s)` — the desired direction, generated from the VL53 sensors
+finding the opponent.
 
-**b) Output node (Y)**
-The actual heading of the robot — where it is really facing.
+**b) Output node**
+`C(s)` — the actual heading of the robot after the motors move.
 
 **c) Forward path**
-Sensor reading → ESP32 decision → motor driver → motors → robot
-movement.
+`R(s) → E(s) → Gc(s) → Gm(s) → C(s)`
+Forward path gain: `P₁ = Gc(s) · Gm(s)`
 
 **d) Feedback loop**
-The robot keeps reading the sensors again after moving. This
-becomes the feedback that updates the next decision.
+The output `C(s)` is sensed by `H(s)` and fed back to the summing
+node. This makes the loop:
+`Gc(s) → Gm(s) → H(s)` back to the input side.
+Loop gain: `L₁ = − Gc(s) · Gm(s) · H(s)`
 
 **e) Self-loop**
-None in this simple version. The robot does not feed any value
-directly back into itself.
+None. No block feeds directly back into itself.
 
-**f) Path gain**
-The “gain” of the path is just the combined effect of:
-controller logic × motor driver × motor response.
+**f) Path gain (overall)**
+The combined effect of `Gc(s) · Gm(s)` going forward, with `H(s)`
+acting as the feedback that closes the loop.
 
 **g) Non-touching loops**
-There is only one feedback loop, so there are no non-touching
-loops.
+Only one loop exists, so there are no non-touching loops.
+
+### Feedback behavior (simple)
+
+* If the robot is **off-target**, `E(s)` is large → motors push
+  harder.
+* If the robot is **on-target**, `E(s)` becomes small → motors
+  ease off.
+* The feedback `H(s)` keeps correcting the robot until `R(s)` and
+  `C(s)` match.
 
 ---
 
 ## 4. Mason’s Gain Derivation (simple form)
 
-Mason’s gain formula gives the overall transfer of the system:
+Mason’s gain formula:
 
 ```
-T(s) = (sum of forward paths × cofactors) / Δ
+T(s) = Σ (Pk · Δk) / Δ
 ```
 
-For Little Sheep, there is:
+For Little Sheep there is only **one forward path** and **one
+loop**, so the derivation is short.
 
-* **One forward path** — sensor → controller → driver → motor →
-  output.
-* **One loop** — the negative feedback from the output back to the
-  controller.
-
-So the equation reduces to the basic closed-loop form:
+### Step 1 — Identify the forward path
 
 ```
-T(s) = G(s) / (1 + G(s))
+P₁ = Gc(s) · Gm(s)
 ```
 
-Where `G(s)` is the combined gain of the controller, driver, and
-motors.
+### Step 2 — Identify the loop gain
 
-Relating this to the robot:
+```
+L₁ = − Gc(s) · Gm(s) · H(s)
+```
 
-* **Sensor input** — VL53 ToF sensors give the opponent direction.
-* **ESP32 processing** — `strategy.cpp` decides the next action.
-* **Motor response** — TB6612FNG + TT motors produce the actual
-  movement.
-* **Edge correction** — QTR sensors act as a safety override.
-  Whenever the edge is detected, the system jumps to the EVADE
-  state, no matter what the inner loop is doing.
+### Step 3 — Compute Δ (graph determinant)
+
+```
+Δ = 1 − (sum of loop gains)
+Δ = 1 − ( − Gc(s) · Gm(s) · H(s) )
+Δ = 1 + Gc(s) · Gm(s) · H(s)
+```
+
+### Step 4 — Compute Δ₁ (cofactor)
+
+The loop touches the forward path, so:
+
+```
+Δ₁ = 1
+```
+
+### Step 5 — Final transfer function
+
+```
+T(s) = ( P₁ · Δ₁ ) / Δ
+
+T(s) = Gc(s) · Gm(s) / ( 1 + Gc(s) · Gm(s) · H(s) )
+```
+
+### What each part means in the robot
+
+* **`Gc(s)`** — the ESP32 controller logic (state machine
+  decisions in `strategy.cpp`).
+* **`Gm(s)`** — the motor driver + TT motor response (TB6612FNG +
+  motors).
+* **`H(s)`** — the sensor feedback (VL53 ToF readings come back to
+  the controller as new input).
+* **`T(s)`** — the overall robot response: how the target
+  direction `R(s)` becomes the actual heading `C(s)`.
+
+### Edge correction note
+
+The QTR edge sensors are **not** part of this linear loop. They
+act as a safety override: when an edge is detected, the controller
+jumps directly to the EVADE state and ignores the normal loop
+until the robot is safe again.
 
 ---
 
