@@ -17,8 +17,8 @@
 //      STBY = 18
 //
 //    Polarity (VERIFIED at the bench, BOTH channels):
-//      forward = IN1 LOW,  IN2 HIGH
-//      reverse = IN1 HIGH, IN2 LOW
+//      forward = IN1 HIGH,  IN2 LOW
+//      reverse = IN1 LOW, IN2 HIGH
 //
 //    Run test_motor_diag FIRST to isolate any single-channel fault before
 //    using this combined-motion test.
@@ -54,27 +54,31 @@ constexpr uint32_t FULL_STOP_MS  = 3000;
 
 // ---------------------------------------------------------------------------
 //  Per-channel primitives. Polarity matches src/motors.cpp:
-//    forward = IN1 LOW, IN2 HIGH
-//    reverse = IN1 HIGH, IN2 LOW
+//    forward = IN1 HIGH, IN2 LOW
+//    reverse = IN1 LOW, IN2 HIGH
 // ---------------------------------------------------------------------------
+
+// LEFT MOTOR
 static void leftForward(int pwm) {
-    digitalWrite(PIN_AIN1, LOW);
-    digitalWrite(PIN_AIN2, HIGH);
-    ledcWrite(LEDC_CH_LEFT, pwm);
-}
-static void leftReverse(int pwm) {
     digitalWrite(PIN_AIN1, HIGH);
     digitalWrite(PIN_AIN2, LOW);
     ledcWrite(LEDC_CH_LEFT, pwm);
 }
+static void leftReverse(int pwm) {
+    digitalWrite(PIN_AIN1, LOW);
+    digitalWrite(PIN_AIN2, HIGH);
+    ledcWrite(LEDC_CH_LEFT, pwm);
+}
+
+// RIGHT MOTOR
 static void rightForward(int pwm) {
-    digitalWrite(PIN_BIN1, LOW);
-    digitalWrite(PIN_BIN2, HIGH);
+    digitalWrite(PIN_BIN1, HIGH);
+    digitalWrite(PIN_BIN2, LOW);
     ledcWrite(LEDC_CH_RIGHT, pwm);
 }
 static void rightReverse(int pwm) {
-    digitalWrite(PIN_BIN1, HIGH);
-    digitalWrite(PIN_BIN2, LOW);
+    digitalWrite(PIN_BIN1, LOW);
+    digitalWrite(PIN_BIN2, HIGH);
     ledcWrite(LEDC_CH_RIGHT, pwm);
 }
 
@@ -100,7 +104,7 @@ void setup() {
     Serial.printf("Right channel : PWMB=GPIO%d  BIN1=GPIO%d  BIN2=GPIO%d  LEDC=%d\n",
                   PIN_PWMB, PIN_BIN1, PIN_BIN2, LEDC_CH_RIGHT);
     Serial.printf("STBY=GPIO%d (HIGH=run)  PWM=%d/255\n", PIN_STBY, MOTOR_PWM);
-    Serial.println("Polarity: forward = IN1 LOW, IN2 HIGH (both channels)");
+    Serial.println("Polarity: forward = IN1 HIGH, IN2 LOW (both channels)");
     Serial.println("\n!!! LIFT WHEELS OFF THE GROUND !!!\n");
 
     pinMode(PIN_STBY, OUTPUT);
