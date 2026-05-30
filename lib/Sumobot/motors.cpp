@@ -16,10 +16,10 @@
 //      H     H     X       short brake
 //      STBY=L: high-Z (coast)
 //
-//  Project polarity (verified at the bench on the assembled chassis -
-//  motor wiring runs INVERTED vs. the SparkFun reference):
-//      forward (positive speed) = IN1 LOW,  IN2 HIGH
-//      reverse (negative speed) = IN1 HIGH, IN2 LOW
+//  Project polarity (verified at the bench on the assembled chassis,
+//  cross-checked by test/test_motor and test/test_motor_diag):
+//      forward (positive speed) = IN1 HIGH, IN2 LOW
+//      reverse (negative speed) = IN1 LOW,  IN2 HIGH
 //  Applies to BOTH the A (left) and B (right) channels.
 //
 //  Requires Arduino-ESP32 core 2.x (uses ledcSetup / ledcAttachPin /
@@ -44,13 +44,13 @@ inline int clampSpeed(int v) {
 
 // Drive one motor channel with a signed speed in -255..255.
 // Sign sets direction via the IN1/IN2 pins; magnitude becomes PWM duty.
-// Forward = IN1 LOW, IN2 HIGH (verified polarity for this build).
+// Forward = IN1 HIGH, IN2 LOW (verified at the bench, both channels).
 void applyMotor(uint8_t ledcCh, int in1Pin, int in2Pin, int spd) {
     const bool fwd  = (spd >= 0);
     int duty = spd >= 0 ? spd : -spd;
     if (duty > 255) duty = 255;
-    digitalWrite(in1Pin, fwd ? LOW  : HIGH);
-    digitalWrite(in2Pin, fwd ? HIGH : LOW);
+    digitalWrite(in1Pin, fwd ? HIGH : LOW);
+    digitalWrite(in2Pin, fwd ? LOW  : HIGH);
     ledcWrite(ledcCh, (uint32_t)duty);
 }
 

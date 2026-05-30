@@ -44,11 +44,13 @@
 //      * 47/21 are stable; this is the locked map.
 //
 //  Polarity (verified at the bench, applies to BOTH channels):
-//      forward = IN1 LOW,  IN2 HIGH
-//      reverse = IN1 HIGH, IN2 LOW
+//      forward = IN1 HIGH, IN2 LOW
+//      reverse = IN1 LOW,  IN2 HIGH
 //      brake   = IN1 HIGH, IN2 HIGH
 //      coast   = STBY LOW   (or IN1=IN2=LOW with STBY HIGH)
-//  See src/motors.cpp applyMotor() for the authoritative implementation.
+//  See lib/Sumobot/motors.cpp applyMotor() for the authoritative
+//  implementation; test/test_motor and test/test_motor_diag are the
+//  bench source of truth.
 // ---------------------------------------------------------------------------
 constexpr int PIN_PWMA = 4;   // Left  motor PWM (LEDC)
 constexpr int PIN_AIN1 = 5;   // Left  motor dir 1

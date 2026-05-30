@@ -83,5 +83,5 @@ constexpr uint32_t SWEEP_SEGMENT_MS = 600;
 // ---------------------------------------------------------------------------
 constexpr float MOVE_TRIM_LEFT     = 1.00f;
 constexpr float MOVE_TRIM_RIGHT    = 1.00f;
-constexpr float MOVE_MS_PER_DEG_LEFT  = 6.0f;  // placeholder until bench-measured
-constexpr float MOVE_MS_PER_DEG_RIGHT = 6.0f;  // placeholder until bench-measured
+constexpr float MOVE_MS_PER_DEG_LEFT  = 11.11f;  // measured based on actual bot, but may vary with battery voltage, floor surface, etc.
+constexpr float MOVE_MS_PER_DEG_RIGHT = 11.11f;  // measured based on actual bot, but may vary with battery voltage, floor surface, etc.

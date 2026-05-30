@@ -15,8 +15,8 @@
 //      Step A5  LEFT  channel coast      (STBY LOW)
 //
 //    Polarity reminder (matches src/motors.cpp - VERIFIED on this build):
-//      forward = IN1 LOW, IN2 HIGH    (both channels)
-//      reverse = IN1 HIGH, IN2 LOW    (both channels)
+//      forward = IN1 HIGH, IN2 LOW    (both channels)
+//      reverse = IN1 LOW, IN2 HIGH    (both channels)
 //
 //      Step B1..B5  same sequence on the RIGHT channel (BIN/PWMB).
 //
@@ -78,13 +78,13 @@ static void rightIdle() {
 static void allIdle() { leftIdle(); rightIdle(); }
 
 static void leftForward(int pwm) {
-    digitalWrite(PIN_AIN1, LOW);
-    digitalWrite(PIN_AIN2, HIGH);
+    digitalWrite(PIN_AIN1, HIGH);
+    digitalWrite(PIN_AIN2, LOW);
     ledcWrite(LEDC_CH_LEFT, pwm);
 }
 static void leftReverse(int pwm) {
-    digitalWrite(PIN_AIN1, HIGH);
-    digitalWrite(PIN_AIN2, LOW);
+    digitalWrite(PIN_AIN1, LOW);
+    digitalWrite(PIN_AIN2, HIGH);
     ledcWrite(LEDC_CH_LEFT, pwm);
 }
 static void leftBrake() {
@@ -94,13 +94,13 @@ static void leftBrake() {
 }
 
 static void rightForward(int pwm) {
-    digitalWrite(PIN_BIN1, LOW);
-    digitalWrite(PIN_BIN2, HIGH);
+    digitalWrite(PIN_BIN1, HIGH);
+    digitalWrite(PIN_BIN2, LOW);
     ledcWrite(LEDC_CH_RIGHT, pwm);
 }
 static void rightReverse(int pwm) {
-    digitalWrite(PIN_BIN1, HIGH);
-    digitalWrite(PIN_BIN2, LOW);
+    digitalWrite(PIN_BIN1, LOW);
+    digitalWrite(PIN_BIN2, HIGH);
     ledcWrite(LEDC_CH_RIGHT, pwm);
 }
 static void rightBrake() {
